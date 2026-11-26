@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ping Pong</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0;background:#000;color:#fff;font-family:"Segoe UI",Arial,sans-serif;overflow:hidden;user-select:none;-webkit-user-select:none}
+#app{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#000}
+.screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:22px;background:#000;z-index:5}
+.screen.on{display:flex}
+.overlay{background:rgba(0,0,0,.8)}
+h1{margin:0 0 10px;font-size:clamp(34px,7vw,64px);letter-spacing:6px;text-shadow:0 0 14px #fff}
+h2{margin:0 0 10px;font-size:clamp(28px,6vw,52px);letter-spacing:4px}
+.row{display:flex;gap:24px;flex-wrap:wrap;justify-content:center}
+.col{display:flex;flex-direction:column;gap:20px}
+button.neon{--c:#ff1744;background:#000;color:#fff;font-size:clamp(16px,2.6vw,24px);font-weight:700;letter-spacing:2px;padding:16px 38px;min-width:200px;border:2px solid var(--c);border-radius:10px;cursor:pointer;box-shadow:0 0 10px var(--c),inset 0 0 10px var(--c);transition:transform .12s,box-shadow .12s}
+button.neon:hover{transform:scale(1.06);box-shadow:0 0 22px var(--c),0 0 40px var(--c),inset 0 0 14px var(--c)}
+button.neon.dim{opacity:.35;cursor:not-allowed}
+button.neon.dim:hover{transform:none;box-shadow:0 0 10px var(--c),inset 0 0 10px var(--c)}
+button.neon.green{--c:#39ff14}button.neon.orange{--c:#ff8800}button.neon.red{--c:#ff1744}button.neon.blue{--c:#1f8bff}button.neon.purple{--c:#bf00ff}button.neon.yellow{--c:#ffe600}button.neon.small{padding:8px 22px;min-width:0;font-size:14px;letter-spacing:1px}
+#game{position:relative;width:min(100vw,calc((100vh - 150px)*1.6));display:flex;flex-direction:column;align-items:center}
+canvas{width:100%;height:auto;aspect-ratio:800/500;display:block;background:#000;touch-action:none}
+#mailContent{width:min(90vw,560px);max-height:58vh;overflow-y:auto;text-align:left;padding:12px;box-sizing:border-box;border:1px solid #ffe600;border-radius:10px;background:#080808;line-height:1.45}#mailContent h3{color:#ffe600;margin:8px 0}#mailContent .mailItem{padding:10px 4px;border-bottom:1px solid #333}#mailContent .mailItem:last-child{border-bottom:0}#titleList{max-height:calc(100vh - 230px);overflow-y:auto;padding:8px;box-sizing:content-box;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:#ffe600 #111;touch-action:pan-y}
+#titleList>div{flex-shrink:0}
+#hud{display:flex;justify-content:center;align-items:flex-end;gap:16px;font-weight:800;font-size:clamp(22px,5vw,44px);letter-spacing:2px;line-height:1.1;padding-bottom:6px;pointer-events:none}
+#hud .hp{display:flex;flex-direction:column;align-items:center}
+#hTitle{color:#ffe600;font-size:.55em;text-shadow:0 0 8px #ffe600}
+#hP1{color:#1f8bff;text-shadow:0 0 10px #1f8bff}
+#hVs{color:#fff;opacity:.8;font-size:.8em}
+#pauseBtn{margin:4px 0 2px;min-width:0;padding:6px 18px;font-size:14px}
+#win{font-size:clamp(36px,9vw,84px);color:#fff;text-shadow:0 0 12px #1f8bff,0 0 30px #1f8bff,0 0 60px #1f8bff;margin:0;font-weight:800}
+#win.lose{text-shadow:0 0 12px #ff1744,0 0 30px #ff1744,0 0 60px #ff1744}
+.hint{opacity:.55;font-size:14px;margin-top:6px;text-align:center}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="welcome" class="screen on">
+    <h1>WELCOME</h1>
+    <div class="col">
+      <button class="neon purple" id="bIncognito">Incognito Mode</button>
+      <button class="neon blue" id="bSignIn">Sign In</button>
+    </div>
+    <div class="hint">Play privately or use a local browser account</div>
+  </div>
+
+  <div id="incognito" class="screen">
+    <h2>Incognito Mode</h2>
+    <input id="adminCode" type="password" autocomplete="off" placeholder="Enter access code"
+      style="background:#111;color:#fff;border:2px solid #bf00ff;border-radius:8px;padding:14px;font-size:18px;width:min(80vw,320px);text-align:center">
+    <div id="incognitoError" class="hint" style="color:#ff1744;opacity:1"></div>
+    <button class="neon purple" id="bEnterIncognito">Continue</button>
+    <button class="neon blue" id="bIncognitoBack">Return</button>
+  </div>
+
+  <div id="auth" class="screen">
+    <h2 id="authHeading">Sign In</h2>
+    <input id="accountEmail" type="email" autocomplete="email" placeholder="Email"
+      style="background:#111;color:#fff;border:2px solid #1f8bff;border-radius:8px;padding:14px;font-size:18px;width:min(80vw,320px)">
+    <input id="accountUsername" type="text" autocomplete="username" placeholder="Username"
+      style="background:#111;color:#fff;border:2px solid #1f8bff;border-radius:8px;padding:14px;font-size:18px;width:min(80vw,320px)">
+    <input id="accountPassword" type="password" autocomplete="current-password" placeholder="Password (at least 6 characters)"
+      style="background:#111;color:#fff;border:2px solid #1f8bff;border-radius:8px;padding:14px;font-size:18px;width:min(80vw,320px)">
+    <div id="authMessage" class="hint" style="opacity:1"></div>
+    <button class="neon blue" id="bAuthSubmit">Sign In</button>
+    <button class="neon green small" id="bAuthSwitch">Create an Account</button>
+    <button class="neon blue small" id="bAuthBack">Return</button>
+  </div>
+
+  <div id="menu" class="screen">
+    <h1 id="menuHeading">PING PONG</h1>
+    <div class="col">
+      <button class="neon red" id="bVs">VS Bot</button>
+      <button class="neon red" id="bPvp">VS Player</button>
+      <button class="neon red" id="bSettings">Settings</button>
+      <button class="neon purple" id="bAdmin" style="display:none">Admin</button>
+    </div>
+    <button class="neon yellow small" id="bTitles" style="position:absolute;top:calc(12px + env(safe-area-inset-top,0px));left:12px">Titles</button>
+    <button id="bMail" aria-label="Inbox and updates" title="Inbox and updates" style="position:absolute;top:calc(12px + env(safe-area-inset-top,0px));right:12px;background:#080808;color:#ffe600;border:1px solid #ffe600;border-radius:8px;padding:8px 12px;font-size:20px;cursor:pointer;box-shadow:0 0 8px #ffe600">✉</button>
+    <button id="bBaby" style="position:absolute;bottom:calc(10px + env(safe-area-inset-bottom,0px));left:10px;background:#000;color:#3a3a3a;border:1px solid #1c1c1c;border-radius:4px;font-size:9px;padding:2px 6px;cursor:pointer">???</button>
+  </div>
+
+  <div id="mail" class="screen">
+    <h2>Inbox &amp; Updates</h2>
+    <div id="mailContent">
+      <h3>Inbox</h3>
+      <div class="mailItem"><strong>Welcome to Ping Pong!</strong><br><span class="hint">Thanks for playing. Your local game progress is saved in this browser.</span></div>
+      <div class="mailItem"><strong>Title progress notice</strong><br><span class="hint">Title unlock progress was reset. Your account information and other game settings were kept.</span></div>
+      <h3>Recent Updates</h3>
+      <div class="mailItem"><strong>Master of Ping Pong</strong><br><span class="hint">Added ball trajectory, faster enemy-side ball speed, slower own-side ball speed, and the Power Bounce ability.</span></div>
+      <div class="mailItem"><strong>Power Bounce</strong><br><span class="hint">Press F to activate the shiny ball. Your next bounce gets 80% extra speed. Cooldown: 20 seconds.</span></div>
+      <div class="mailItem"><strong>Title reset</strong><br><span class="hint">All title unlocks were reset and the reset is saved.</span></div>
+    </div>
+    <button class="neon blue" id="bMailBack">Return</button>
+    <div class="hint">Inbox notices are stored in this game version; they are not live online messages.</div>
+  </div>
+
+  <div id="settings" class="screen">
+    <h2>Settings</h2>
+    <div class="hint">Game settings will appear here.</div>
+    <button class="neon blue" id="bSettingsBack">Return</button>
+  </div>
+
+  <div id="adminPanel" class="screen">
+    <h2>Admin Panel</h2>
+    <button class="neon green" id="bUnlockAll">Unlock Everything</button>
+    <button class="neon purple" id="bAdminTest">Play Test Mode</button>
+    <button class="neon blue" id="bAdminBack">Return</button>
+  </div>
+
+  <div id="testModeScreen" class="screen">
+    <h2>Test Mode</h2>
+    <div class="hint">Player 1 is invincible during this match.</div>
+    <div class="row">
+      <button class="neon green" data-test-d="easy">Easy Bot</button>
+      <button class="neon orange" data-test-d="medium">Medium Bot</button>
+      <button class="neon red" data-test-d="hard">Hard Bot</button>
+      <button class="neon purple" data-test-d="insane">Insane Bot</button>
+    </div>
+    <button class="neon blue" id="bTestModeBack">Return</button>
+  </div>
+
+  <div id="diff" class="screen">
+    <h2>Difficulty</h2>
+    <div class="row">
+      <button class="neon green" data-d="easy">Easy</button>
+      <button class="neon orange" data-d="medium">Medium</button>
+      <button class="neon red" data-d="hard">Hard</button>
+      <button class="neon purple" data-d="insane" id="bInsane" style="display:none">Insane</button>
+    </div>
+    <button class="neon blue" id="bBack">Return</button>
+    <div style="display:none">
+    </div>
+  </div>
+
+  <div id="titles" class="screen">
+    <h2>Titles</h2>
+    <div id="titleList" class="col" style="width:min(90vw,440px)"></div>
+    <button class="neon blue" id="bTBack">Return</button>
+  </div>
+
+  <div id="game" style="display:none">
+    <canvas id="cv" width="800" height="500"></canvas>
+    <button class="neon blue" id="pauseBtn">❚❚ Pause</button>
+    <button class="neon yellow" id="masterAbility" style="display:none">✨ Power Bounce (20s)</button>
+
+    <div id="hud"><div class="hp"><div id="hTitle"></div><div id="hP1">Player 1</div></div><div id="hVs">vs</div><div id="hBot"></div></div>
+
+    <div id="pause" class="screen overlay">
+      <h2>Paused</h2>
+      <div class="col">
+        <button class="neon green" id="bRet">Return</button>
+        <button class="neon red" id="bExit">Exit</button>
+      </div>
+    </div>
+
+    <div id="over" class="screen overlay">
+      <p id="win">You WON !!!!</p>
+      <p class="hint" id="unl" style="color:#bf00ff;font-size:20px;opacity:1;margin:0"></p>
+      <button class="neon blue" id="bAgain">Main Menu</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+const W=800,H=500,PW=12,PH=84,BR=8,WIN=10;
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const $=id=>document.getElementById(id);
+const screens={welcome:$('welcome'),incognito:$('incognito'),auth:$('auth'),menu:$('menu'),mail:$('mail'),settings:$('settings'),adminPanel:$('adminPanel'),testModeScreen:$('testModeScreen'),diff:$('diff'),titles:$('titles')};
+const gameEl=$('game');
+
+// Persistent progress (wins per bot, Insane unlock)
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+let wins={easy:0,medium:0,hard:0,insane:0,pvp:0,baby:0,quest:0};
+try{wins=Object.assign(wins,JSON.parse(store.get('pp_wins')||'{}'))}catch(e){}
+// One-time title progression reset. Account data and all other settings are preserved.
+if(store.get('pp_titles_reset_v1')!=='1'){
+  wins={easy:0,medium:0,hard:0,insane:0,pvp:0,baby:0,quest:0,questb:0,masterQuest_easy:0,masterQuest_medium:0,masterQuest:0};
+  store.set('pp_wins',JSON.stringify(wins));
+  store.set('pp_title','');
+  store.set('pp_titles_reset_v1','1');
+}
+let insaneOn=wins.easy>=10&&wins.medium>=10&&wins.hard>=10;
+let equipped=store.get('pp_title')||'';
+let testerAll=false,adminMode=false,testMode=false,authMode='signin';
+function refreshInsane(){$('bInsane').style.display=insaneOn?'':'none'}
+function unlockInsane(){insaneOn=true;refreshInsane()}
+refreshInsane();
+
+// Bot difficulty profiles
+const LEVELS={
+  easy:  {speed:150,err:90,react:.45,predict:false,idle:false},
+  medium:{speed:330,err:32,react:.18,predict:true, idle:true},
+  hard:  {speed:620,err:12,react:.07,predict:true, idle:true, slip:true, human:true, acc:4200},
+  insane:{speed:3000,err:0,react:.016,predict:true,idle:true,slipChance:.001}
+};
+
+let curBuff={own:1,enemy:1},masterAbilityReadyAt=0,masterShiny=false,masterAbilityActive=false,introT=0,diffName='',spMul=1,pvp=false,touchY2=null,playTime=0,level,state='menu',score,ball,pl,bot,count,serveWait,mouseY=null,keys={},last=0,raf;
+
+function show(name){
+  Object.values(screens).forEach(s=>s.classList.remove('on'));
+  gameEl.style.display='none';
+  if(name==='game'){gameEl.style.display='flex'}
+  else if(screens[name])screens[name].classList.add('on');
+}
+
+$('bVs').onclick=()=>show('diff');
+$('bIncognito').onclick=()=>{ $('adminCode').value=''; $('incognitoError').textContent=''; show('incognito') };
+$('bIncognitoBack').onclick=()=>show('welcome');
+$('bEnterIncognito').onclick=()=>{
+  if($('adminCode').value==='adminismemax'){
+    adminMode=true;testerAll=false;
+    $('menuHeading').style.display='none';$('bAdmin').style.display='';
+    $('bSettings').style.display='none';
+  }else{
+    adminMode=false;testerAll=false;
+    $('menuHeading').style.display='';$('bAdmin').style.display='none';
+    $('bSettings').style.display='';
+  }
+  show('menu');
+};
+$('adminCode').addEventListener('keydown',e=>{if(e.key==='Enter')$('bEnterIncognito').click()});
+$('bAdmin').onclick=()=>show('adminPanel');
+$('bAdminBack').onclick=()=>show('menu');
+$('bUnlockAll').onclick=()=>{
+  testerAll=true;insaneOn=true;
+  wins={easy:999,medium:999,hard:999,insane:999,pvp:999,baby:1,quest:999,questb:999};
+  store.set('pp_wins',JSON.stringify(wins));refreshInsane();
+  $('bUnlockAll').textContent='Everything Unlocked!';
+};
+$('bAdminTest').onclick=()=>show('testModeScreen');
+$('bTestModeBack').onclick=()=>show('adminPanel');
+document.querySelectorAll('[data-test-d]').forEach(b=>b.onclick=()=>start(b.dataset.testD,true));
+$('bMail').onclick=()=>show('mail');
+$('bMailBack').onclick=()=>show('menu');
+$('bSettings').onclick=()=>show('settings');
+$('bSettingsBack').onclick=()=>show('menu');
+$('bSignIn').onclick=()=>{authMode='signin';renderAuth();show('auth')};
+$('bAuthBack').onclick=()=>show('welcome');
+$('bAuthSwitch').onclick=()=>{authMode=authMode==='signin'?'create':'signin';renderAuth()};
+function renderAuth(){
+  $('authHeading').textContent=authMode==='signin'?'Sign In':'Create Account';
+  $('bAuthSubmit').textContent=authMode==='signin'?'Sign In':'Create Account';
+  $('bAuthSwitch').textContent=authMode==='signin'?'Create an Account':'Back to Sign In';
+  $('accountUsername').style.display=authMode==='signin'?'none':'block';
+  $('accountPassword').autocomplete=authMode==='signin'?'current-password':'new-password';
+  $('authMessage').textContent='Sign in with your Firebase email and password.';
+}
+$('bAuthSubmit').onclick=async()=>{
+  const email=$('accountEmail').value.trim().toLowerCase();
+  const username=$('accountUsername').value.trim();
+  const password=$('accountPassword').value;
+  if(!email||!email.includes('@')||!password||(authMode==='create'&&!username)){
+    $('authMessage').textContent='Enter a valid email, password'+(authMode==='create'?' and username.':'.');return;
+  }
+  if(password.length<6){
+    $('authMessage').textContent='Password must be at least 6 characters.';return;
+  }
+  if(typeof window.firebaseAuthHandler!=='function'){
+    $('authMessage').textContent='Firebase is not configured yet. Add your Firebase project config in the setup section of this file.';return;
+  }
+  $('bAuthSubmit').disabled=true;
+  $('bAuthSubmit').textContent='Please wait...';
+  try{
+    const result=await window.firebaseAuthHandler(authMode,email,password,username);
+    $('authMessage').textContent=authMode==='create'?'Account created! You are signed in.':'Welcome back!';
+    $('accountPassword').value='';
+    setTimeout(()=>show('menu'),700);
+  }catch(error){
+    const messages={
+      'auth/email-already-in-use':'This email is already registered.',
+      'auth/invalid-email':'Please enter a valid email address.',
+      'auth/weak-password':'Choose a stronger password (at least 6 characters).',
+      'auth/invalid-credential':'Email or password is incorrect.',
+      'auth/user-not-found':'No account found. Create an account first.',
+      'auth/wrong-password':'Email or password is incorrect.',
+      'auth/too-many-requests':'Too many attempts. Please try again later.',
+      'auth/network-request-failed':'Network error. Check your internet connection.'
+    };
+    $('authMessage').textContent=messages[error.code]||('Firebase error: '+(error.message||error.code||'Unknown error'));
+  }finally{
+    $('bAuthSubmit').disabled=false;
+    renderAuthButtonOnly();
+  }
+};
+function renderAuthButtonOnly(){
+  $('bAuthSubmit').textContent=authMode==='signin'?'Sign In':'Create Account';
+}
+$('bPvp').onclick=()=>start('pvp');
+$('bBack').onclick=()=>show('menu');
+
+// Titles earned from wins
+const TITLES=[
+  {n:'First of Many',d:'Beat Easy 1 time',k:'easy',need:1,buff:{own:.93,enemy:1.05}},
+  {n:'Quest Accepted',d:'Beat Easy with the Baby title equipped',k:'questb',need:1,buff:{own:11,enemy:.5}},
+  {n:'Master of Ping Pong',d:'Beat Easy and Medium with the Quest Accepted title equipped',k:'masterQuest',need:1,buff:{own:.2,enemy:11},btext:'Shows the ball trajectory. Ability: make the ball shine; your next paddle bounce is 80% stronger. 20-second cooldown.'},
+  {n:'Rising Star',d:'Beat Medium 1 time',k:'medium',need:1,buff:{own:1.08,enemy:1.10}},
+  {n:'Giant Slayer',d:'Beat Hard 1 time',k:'hard',need:1},
+  {n:'Rookie Smasher',d:'Win 10 games on Easy',k:'easy',need:10,buff:{own:.93,enemy:1.05}},
+  {n:'Club Champion',d:'Win 10 games on Medium',k:'medium',need:10},
+  {n:'Pro Slayer',d:'Win 10 games on Hard',k:'hard',need:10},
+  {n:'Insane Legend',d:'Win a game on Insane',k:'insane',need:1},
+  {n:'Insane Master',d:'Win 10 games on Insane',k:'insane',need:10},
+  {n:'Friendly Rival',d:'Win 1 VS Player match',k:'pvp',need:1,buff:{own:.92,enemy:1.07}},
+  {n:'Local Hero',d:'Win 10 VS Player matches',k:'pvp',need:10,buff:{own:.9,enemy:1.15}},
+  {n:'Arena Legend',d:'Win 50 VS Player matches',k:'pvp',need:50,buff:{own:.4,enemy:1.75}},
+  {n:'Baby',d:'Secret',k:'baby',need:1,secret:true,buff:{own:6,enemy:.9},btext:'Ball 500% faster on your side, 10% slower on bot side. All bots play better.'}
+];
+function sd(m){const p=Math.round(Math.abs(m-1)*100);return p+'% '+(m>=1?'faster':'slower')}
+function earned(t){return testerAll||(wins[t.k]||0)>=t.need}
+function myTitle(){const t=TITLES.find(x=>x.n===equipped);return t&&earned(t)?t.n:''}
+function renderTitles(){
+  const el=$('titleList');el.innerHTML='';
+  TITLES.forEach(t=>{
+    if(t.secret&&!earned(t))return;
+    const w=Math.min(wins[t.k]||0,t.need),ok=earned(t);
+    const row=document.createElement('div');
+    row.style.cssText='border:2px solid '+(ok?'#ffe600':'#444')+';border-radius:10px;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;gap:16px;'+(ok?'box-shadow:0 0 12px #ffe600,inset 0 0 8px #ffe600;':'opacity:.5;');
+    const l=document.createElement('div');
+    const a=document.createElement('div');a.textContent=ok?t.n:'???';a.style.cssText='font-weight:700;font-size:18px;'+(ok?'color:#ffe600;':'');
+    const b=document.createElement('div');b.textContent=t.d+(t.btext?'\n'+t.btext:t.buff?'\nBuff: ball '+sd(t.buff.enemy)+' on enemy side, '+sd(t.buff.own)+' on your side':'');b.style.cssText='font-size:13px;opacity:.7;white-space:pre-line';
+    l.append(a,b);
+    const p=document.createElement('div');p.style.fontWeight='700';
+    if(ok){
+      const on=equipped===t.n;
+      const bt=document.createElement('button');bt.className='neon yellow small';bt.textContent=on?'Equipped':'Equip';
+      if(on)bt.style.background='#3a3300';
+      bt.onclick=()=>{equipped=on?'':t.n;store.set('pp_title',equipped);renderTitles()};
+      p.append(bt);
+    }else p.textContent=w+'/'+t.need;
+    row.append(l,p);el.append(row);
+  });
+}
+$('bTitles').onclick=()=>{renderTitles();show('titles')};
+$('bTBack').onclick=()=>show('menu');
+$('bBaby').onclick=()=>{wins.baby=1;store.set('pp_wins',JSON.stringify(wins));const b=$('bBaby');b.textContent='Baby unlocked';setTimeout(()=>b.textContent='???',1500)};
+// Tester access is now available only through the admin panel.
+document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>start(b.dataset.d));
+
+function start(d,isTest=false){
+  pvp=d==='pvp';level=pvp?null:LEVELS[d];testMode=!!isTest;
+  if(level&&d==='easy'&&myTitle())level=myTitle()==='Baby'?LEVELS.hard:Object.assign({},level,{speed:260,err:50,react:.25});
+  if(level&&myTitle()==='Baby')level=Object.assign({},level,{speed:level.speed*2,acc:level.acc&&level.acc*2,err:level.err*.6,react:level.react*.7,slipMul:.5});diffName=d;spMul=pvp?1.2:(d==='insane'?3:1);$('unl').textContent='';
+  $('hTitle').textContent=(testMode?'TEST MODE':myTitle());
+  $('masterAbility').style.display=(!testMode && myTitle()==='Master of Ping Pong')?'':'none';
+  masterAbilityReadyAt=0;masterShiny=false;masterAbilityActive=false;
+  updateMasterAbilityButton();
+  {const bt=TITLES.find(x=>x.n===myTitle());curBuff=(!pvp&&bt&&bt.buff)?bt.buff:{own:1,enemy:1}}
+  $('hBot').textContent=({easy:'Easy Bot',medium:'Medium Bot',hard:'Hard Bot',insane:'Insane Bot',pvp:'Player 2'})[d];
+  {const c=({easy:'#39ff14',medium:'#ff8800',hard:'#ff1744',insane:'#bf00ff',pvp:'#ff1744'})[d];$('hBot').style.color=c;$('hBot').style.textShadow='0 0 10px '+c}
+  mouseY=null;touchY2=null;
+  score={p:0,b:0};
+  pl={x:28,y:H/2-PH/2};
+  bot={x:W-28-PW,y:H/2-PH/2,target:H/2,t:0,vy:0,inc:false,slipOff:0};
+  ball={x:W/2,y:H/2,vx:0,vy:0,sp:400};
+  count=0;serveWait=0;playTime=0;
+  $('pause').classList.remove('on');$('over').classList.remove('on');
+  show('game');
+  state='intro';introT=0;
+  last=performance.now();
+  cancelAnimationFrame(raf);raf=requestAnimationFrame(loop);
+}
+
+function updateMasterAbilityButton(){
+  const b=$('masterAbility');
+  if(!b)return;
+  const left=Math.max(0,masterAbilityReadyAt-performance.now()/1000);
+  b.disabled=left>0||masterAbilityActive||state!=='play';
+  b.textContent=masterAbilityActive?'✨ READY — NEXT BOUNCE':left>0?`✨ Power Bounce (${Math.ceil(left)}s)`:'✨ Power Bounce';
+}
+function activateMasterAbility(){
+  if(myTitle()!=='Master of Ping Pong'||state!=='play'||performance.now()/1000<masterAbilityReadyAt||masterAbilityActive)return;
+  masterAbilityActive=true;masterShiny=true;masterAbilityReadyAt=performance.now()/1000+20;
+  updateMasterAbilityButton();
+}
+$('masterAbility').onclick=activateMasterAbility;
+
+function serve(dir){
+  ball.x=W/2;ball.y=H/2;ball.sp=400*spMul;
+  const a=(Math.random()*0.7-0.35);
+  ball.vx=Math.cos(a)*ball.sp*dir;ball.vy=Math.sin(a)*ball.sp;
+}
+
+// pause
+function pause(){if(state==='play'||state==='count'){state='paused';$('pause').classList.add('on')}}
+function resume(){if(state==='paused'){state=prevState;$('pause').classList.remove('on');last=performance.now()}}
+let prevState='play';
+const _pause=pause;
+pause=function(){if(state==='play'||state==='count'){prevState=state;state='paused';$('pause').classList.add('on')}};
+$('pauseBtn').onclick=pause;
+$('bRet').onclick=resume;
+$('bExit').onclick=()=>{state='menu';$('pause').classList.remove('on');show('menu')};
+$('bAgain').onclick=()=>{state='menu';$('over').classList.remove('on');show('menu')};
+
+// input
+function setMouse(cy){const r=cv.getBoundingClientRect();mouseY=(cy-r.top)/r.height*H}
+cv.addEventListener('mousemove',e=>{if(!pvp)setMouse(e.clientY)});
+function touches(e){
+  const r=cv.getBoundingClientRect();
+  for(const t of e.touches){
+    const x=(t.clientX-r.left)/r.width*W,y=(t.clientY-r.top)/r.height*H;
+    if(pvp&&x>W/2)touchY2=y;else mouseY=y;
+  }
+  e.preventDefault();
+}
+cv.addEventListener('touchmove',touches,{passive:false});
+cv.addEventListener('touchstart',touches,{passive:false});
+addEventListener('keydown',e=>{
+  keys[e.key.toLowerCase()]=true;
+  if(e.key.toLowerCase()==='f'&&!e.repeat)activateMasterAbility();
+  if(e.key==='Escape'||e.key.toLowerCase()==='p'){state==='paused'?resume():pause()}
+  if(['arrowup','arrowdown'].includes(e.key.toLowerCase()))e.preventDefault();
+});
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+
+// predict where the ball reaches the bot's x (with wall bounces)
+function predict(){
+  const t=(bot.x-ball.x)/ball.vx;
+  let y=ball.y+ball.vy*t;
+  const lo=BR,hi=H-BR,span=hi-lo;
+  y=((y-lo)%(2*span)+2*span)%(2*span);
+  if(y>span)y=2*span-y;
+  return y+lo;
+}
+
+function updateBot(dt){
+  const inc=ball.vx>0;
+  if(inc&&!bot.inc){
+    // Hard: after ~15s of play the bot sometimes slips by a small margin
+    const chance=(level.slipChance!==undefined?level.slipChance:(level.slip&&playTime>15?Math.min(.15+(playTime-15)/150,.4):0))*(level.slipMul||1);
+    bot.slipOff=Math.random()<chance?(Math.random()<.5?-1:1)*(52+Math.random()*18):0;
+    if(level.human)bot.t=Math.max(bot.t,.1+Math.random()*.1);
+  }
+  bot.inc=inc;
+  bot.t-=dt;
+  if(bot.t<=0){
+    bot.t=level.react;
+    let base;
+    if(ball.vx>0) base=level.predict?predict():ball.y;
+    else base=level.human?H/2+(ball.y-H/2)*.35:(level.idle?H/2:ball.y*0.5+H/4);
+    bot.target=base+(Math.random()*2-1)*level.err*(level.human?(.4+Math.abs(bot.x-ball.x)/W):1)+(bot.slipOff||0);
+  }
+  const c=bot.y+PH/2,d=bot.target-c;
+  const step=level.speed*dt;
+  if(level.human){
+    const want=Math.max(-level.speed,Math.min(level.speed,d*7));
+    const a=level.acc*dt;
+    bot.vy=(bot.vy||0)+Math.max(-a,Math.min(a,want-(bot.vy||0)));
+    bot.y+=bot.vy*dt;
+    if(bot.y<0||bot.y>H-PH)bot.vy=0;
+  }else if(Math.abs(d)>3)bot.y+=Math.sign(d)*Math.min(Math.abs(d),step);
+  bot.y=Math.max(0,Math.min(H-PH,bot.y));
+}
+
+function updateP2(dt){
+  if(keys['arrowup'])bot.y-=520*dt;
+  if(keys['arrowdown'])bot.y+=520*dt;
+  if(touchY2!==null){const d=touchY2-PH/2-bot.y;bot.y+=Math.sign(d)*Math.min(Math.abs(d),1400*dt)}
+  bot.y=Math.max(0,Math.min(H-PH,bot.y));
+}
+
+function updatePlayer(dt){
+  if(keys['w']||(!pvp&&keys['arrowup'])){pl.y-=520*dt;mouseY=null}
+  if(keys['s']||(!pvp&&keys['arrowdown'])){pl.y+=520*dt;mouseY=null}
+  if(mouseY!==null){
+    const d=mouseY-PH/2-pl.y;
+    pl.y+=Math.sign(d)*Math.min(Math.abs(d),1400*dt);
+  }
+  pl.y=Math.max(0,Math.min(H-PH,pl.y));
+}
+
+function hit(p,dir){
+  const rel=((ball.y-(p.y+PH/2))/(PH/2));
+  const ang=Math.max(-1,Math.min(1,rel))*(Math.PI/3);
+  ball.sp=Math.min(ball.sp*1.05,820*spMul);
+  if(masterAbilityActive){
+    ball.sp*=1.8;
+    masterAbilityActive=false;masterShiny=false;
+  }
+  ball.vx=Math.cos(ang)*ball.sp*dir;
+  ball.vy=Math.sin(ang)*ball.sp;
+}
+
+function updateBall(dt){
+  if(serveWait>0){serveWait-=dt;return}
+  const m=ball.x<W/2?curBuff.own:curBuff.enemy;ball.x+=ball.vx*dt*m;ball.y+=ball.vy*dt*m;
+  if(ball.y<BR){ball.y=BR;ball.vy=Math.abs(ball.vy)}
+  if(ball.y>H-BR){ball.y=H-BR;ball.vy=-Math.abs(ball.vy)}
+  // player paddle
+  if(ball.vx<0&&ball.x-BR<pl.x+PW&&ball.x+BR>pl.x&&ball.y>pl.y-BR&&ball.y<pl.y+PH+BR){
+    ball.x=pl.x+PW+BR;hit(pl,1);
+  }
+  if(ball.vx>0&&ball.x+BR>bot.x&&ball.x-BR<bot.x+PW&&ball.y>bot.y-BR&&ball.y<bot.y+PH+BR){
+    ball.x=bot.x-BR;hit(bot,-1);
+  }
+  if(ball.x<-BR*2){if(testMode){ball.x=W/2;ball.y=H/2;ball.vx=ball.vy=0;serveWait=.5;pendingDir=1;needServe=true}else{score.b++;point(-1)}}
+  else if(ball.x>W+BR*2){score.p++;point(1)}
+}
+
+function point(scorerDir){
+  if(score.p>=WIN||score.b>=WIN){
+    state='over';
+    const w=score.p>=WIN;
+    if(pvp){wins.pvp++;store.set('pp_wins',JSON.stringify(wins))}
+    if(w&&!pvp&&wins[diffName]!==undefined){
+      wins[diffName]++;
+      if(diffName==='easy'&&myTitle()==='Baby')wins.questb=(wins.questb||0)+1;
+      if(myTitle()==='Quest Accepted'&&(diffName==='easy'||diffName==='medium')){
+        wins['masterQuest_'+diffName]=1;
+        if(wins.masterQuest_easy&&wins.masterQuest_medium)wins.masterQuest=1;
+      }
+      store.set('pp_wins',JSON.stringify(wins));
+      if(!insaneOn&&wins.easy>=10&&wins.medium>=10&&wins.hard>=10){unlockInsane();$('unl').textContent='🔓 Secret difficulty unlocked: Insane'}
+    }
+    $('win').textContent=pvp?(w?'Player 1 WON !!!!':'Player 2 WON !!!!'):(w?'You WON !!!!':'You LOST');
+    $('win').className=w?'':'lose';
+    $('over').classList.add('on');
+    return;
+  }
+  ball.x=W/2;ball.y=H/2;ball.vx=ball.vy=0;
+  serveWait=.8;
+  setTimeout(()=>{},0);
+  pendingDir=-scorerDir;
+  needServe=true;
+}
+let pendingDir=1,needServe=false;
+
+function loop(now){
+  raf=requestAnimationFrame(loop);
+  const dt=Math.min((now-last)/1000,.04);last=now;
+  $('hud').style.visibility=state==='intro'?'hidden':'visible';
+  updateMasterAbilityButton();
+  if(state==='intro'){introT+=dt;if(introT>=2.2)state='count'}
+  else if(state==='count'){
+    count+=dt;updatePlayer(dt);if(pvp)updateP2(dt);
+    if(count>=3.6){state='play';serve(Math.random()<.5?1:-1)}
+  }else if(state==='play'){
+    playTime+=dt;updatePlayer(dt);pvp?updateP2(dt):updateBot(dt);
+    if(needServe&&serveWait<=0){needServe=false;serve(pendingDir)}
+    const n=Math.max(1,Math.ceil(dt*Math.hypot(ball.vx,ball.vy)*Math.max(curBuff.own,curBuff.enemy)/8));for(let i=0;i<n;i++)updateBall(dt/n);
+  }
+  draw();
+}
+
+function glowRect(x,y,w,h,col){
+  ctx.shadowColor=col;ctx.shadowBlur=20;ctx.fillStyle=col;
+  ctx.beginPath();ctx.roundRect(x,y,w,h,5);ctx.fill();
+  ctx.shadowBlur=0;
+}
+
+function draw(){
+  ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
+  // side lines
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,4);ctx.fillRect(0,H-4,W,4);
+  // dashed net
+  ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.setLineDash([14,12]);
+  ctx.beginPath();ctx.moveTo(W/2,6);ctx.lineTo(W/2,H-6);ctx.stroke();ctx.setLineDash([]);
+  // score
+  ctx.fillStyle='#fff';ctx.font='700 56px "Segoe UI",Arial';ctx.textAlign='center';
+  ctx.globalAlpha=.6;ctx.fillText(score.p,W/2-80,80);ctx.fillText(score.b,W/2+80,80);ctx.globalAlpha=1;
+  // paddles
+  glowRect(pl.x,pl.y,PW,PH,'#1f8bff');
+  glowRect(bot.x,bot.y,PW,PH,'#ff1744');
+  // Master of Ping Pong trajectory preview
+  if(myTitle()==='Master of Ping Pong' && state==='play' && (ball.vx!==0||ball.vy!==0)){
+    let tx=ball.x,ty=ball.y,vx=ball.vx,vy=ball.vy;
+    ctx.save();ctx.setLineDash([7,7]);ctx.lineWidth=2;ctx.strokeStyle='rgba(255,230,0,.8)';
+    ctx.beginPath();ctx.moveTo(tx,ty);
+    const mult=tx<W/2?curBuff.own:curBuff.enemy;
+    for(let i=0;i<180;i++){
+      tx+=vx*.025*mult;ty+=vy*.025*mult;
+      if(ty<BR){ty=BR;vy=Math.abs(vy)}
+      if(ty>H-BR){ty=H-BR;vy=-Math.abs(vy)}
+      ctx.lineTo(tx,ty);
+      if(tx<0||tx>W)break;
+    }
+    ctx.stroke();ctx.restore();
+  }
+  // ball
+  ctx.shadowColor=masterShiny?'#ffe600':'#fff';ctx.shadowBlur=masterShiny?28:14;ctx.fillStyle=masterShiny?'#ffe600':'#fff';
+  ctx.beginPath();ctx.arc(ball.x,ball.y,BR,0,7);ctx.fill();ctx.shadowBlur=0;
+  if(pvp&&state!=='over'){ctx.font='600 18px "Segoe UI",Arial';ctx.fillStyle='#fff';ctx.globalAlpha=state==='count'?.7:.3;ctx.fillText('Player 1: W / S',W/4,H-20);ctx.fillText('Player 2: ↑ / ↓',W*3/4,H-20);ctx.globalAlpha=1}
+  if(state==='intro'){
+    const names={easy:'Easy Bot',medium:'Medium Bot',hard:'Hard Bot',insane:'Insane Bot',pvp:'Player 2'};
+    const cols={easy:'#39ff14',medium:'#ff8800',hard:'#ff1744',insane:'#bf00ff',pvp:'#ff1744'};
+    ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(0,0,W,H);
+    ctx.globalAlpha=Math.min(1,introT/.35);ctx.textAlign='center';
+    ctx.font='800 80px "Segoe UI",Arial';
+    {const tt=myTitle();if(tt){ctx.font='700 30px "Segoe UI",Arial';ctx.fillStyle='#ffe600';ctx.shadowColor='#ffe600';ctx.shadowBlur=14;ctx.fillText(tt,W/2,H/2-130);ctx.font='800 80px "Segoe UI",Arial'}}
+    ctx.fillStyle='#1f8bff';ctx.shadowColor='#1f8bff';ctx.shadowBlur=22;ctx.fillText('Player 1',W/2,H/2-45);
+    ctx.font='700 48px "Segoe UI",Arial';ctx.fillStyle='#fff';ctx.shadowColor='#fff';ctx.fillText('VS',W/2,H/2+25);
+    ctx.font='800 80px "Segoe UI",Arial';ctx.fillStyle=cols[diffName];ctx.shadowColor=cols[diffName];ctx.fillText(names[diffName],W/2,H/2+120);
+    ctx.shadowBlur=0;ctx.globalAlpha=1;
+  }
+  // countdown
+  if(state==='count'||(state==='paused'&&prevState==='count')){
+    const t=count;
+    const txt=t<.9?'3...':t<1.8?'2...':t<2.7?'1...':'Start!';
+    ctx.font='800 90px "Segoe UI",Arial';ctx.fillStyle='#fff';
+    ctx.shadowColor='#fff';ctx.shadowBlur=24;
+    ctx.fillText(txt,W/2,H/2+30);ctx.shadowBlur=0;
+  }
+}
+})();
+</script>
+
+<script type="module">
+  // FIREBASE SETUP:
+  // Replace the placeholder values below with the Firebase web-app config
+  // from Firebase Console -> Project settings -> Your apps -> Web app.
+  // This config is expected to be public in a browser app. Protect your data
+  // with Firebase Authentication and Firestore Security Rules (shown separately).
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+  import {
+    getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+    updateProfile
+  } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+  import {
+    getFirestore, doc, setDoc, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT_ID.appspot.com",
+    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+    appId: "YOUR_APP_ID"
+  };
+
+  const isConfigured = Object.values(firebaseConfig).every(
+    value => value && !value.startsWith("YOUR_")
+  );
+
+  if (isConfigured) {
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    window.firebaseAuthHandler = async (mode, email, password, username) => {
+      if (mode === "create") {
+        const credential = await createUserWithEmailAndPassword(auth, email, password);
+        await updateProfile(credential.user, { displayName: username });
+        // Store only public profile data in Firestore. Never store the password.
+        await setDoc(doc(db, "users", credential.user.uid), {
+          username,
+          email,
+          createdAt: serverTimestamp()
+        });
+        return credential.user;
+      }
+
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      return credential.user;
+    };
+  } else {
+    window.firebaseAuthHandler = null;
+    console.warn("Firebase is not configured. Add your Firebase web app config.");
+  }
+</script>
+\n</body>
+</html>
